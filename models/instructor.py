@@ -38,16 +38,13 @@ def tokenize(x):
 
 	ia = instructions['input_ids']
 	ib = instructions['attention_mask']*0
-	ic = instructions_size
 
 	iadm = ia.repeat([vsz, 1])
 	ibdm = ib.repeat([vsz, 1])
-	icdm = ic.repeat([vsz, 1])
 
 	return {
 		'input_ids': torch.cat([iadm, a], dim=1),
 		'attention_mask': torch.cat([ibdm, b], dim=1),
-		'context_masks': icdm
 	}
 
 
@@ -73,15 +70,13 @@ def run(inputs):
 	# Apply batch size limit
 	a_batch = inputs['input_ids'].split(bsz)
 	b_batch = inputs['attention_mask'].split(bsz)
-	c_batch = inputs['context_masks'].split(bsz)
 
 	slices = []
 
-	for a, b, c in zip(a_batch, b_batch, c_batch):
+	for a, b in zip(a_batch, b_batch):
 		inputs = {
 			'input_ids': a.to(device),
 			'attention_mask': b.to(device),
-			'context_masks': c.to(device)
 		}
 
 		slices.append( run_model(inputs) )
