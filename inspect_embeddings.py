@@ -9,13 +9,10 @@ def load():
 	src_file = open("datatape_src.bin", "rb") # Token frequency map
 	dst_file = open("datatape_dst.bin", "rb") # Resulting embeddings
 
-	src_read = lambda: array("i", src_file.read(32100*4))
-	dst_read = lambda: array("f", dst_file.read(768*4))
+	src = torch.frombuffer(src_file.read(), dtype=torch.int32).split(32100)
+	dst = torch.frombuffer(dst_file.read(), dtype=torch.float32).split(768)
 
 	size = 8154
-
-	src = [src_read() for _ in range(size)]
-	dst = [dst_read() for _ in range(size)]
 
 	random.seed(42)
 
@@ -47,8 +44,8 @@ loss_fn = lambda have, want: torch.mean(torch.square(have - want))
 def test():
 	src, dst = pairs[4548]
 
-	src = torch.tensor(src).float()
-	dst = torch.tensor(dst).float()
+	src = src.float()
+	dst = dst.float()
 
 	loss = loss_fn(net(src), dst)
 	print(loss)
@@ -56,8 +53,8 @@ def test():
 # Batch size has a lot of effect
 def train():
 	for x in batched(pairs, 16):
-		src = [torch.tensor(src) for src, _ in x]
-		dst = [torch.tensor(dst) for _, dst in x]
+		src = [src for src, _ in x]
+		dst = [dst for _, dst in x]
 
 		src = torch.vstack(src).float()
 		dst = torch.vstack(dst)
