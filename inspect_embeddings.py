@@ -1,24 +1,20 @@
-from itertools import islice
-from array import array
-import random
+from torch.nn import Linear
 import torch
 
-from torch.nn import Linear
+torch.manual_seed(42)
 
 def load():
 	src_file = open("datatape_src.bin", "rb") # Token frequency map
 	dst_file = open("datatape_dst.bin", "rb") # Resulting embeddings
 
-	src = torch.frombuffer(src_file.read(), dtype=torch.int32).split(32100)
-	dst = torch.frombuffer(dst_file.read(), dtype=torch.float32).split(768)
-
 	size = 8154
 
-	random.seed(42)
+	src = torch.frombuffer(src_file.read(), dtype=torch.int32).view(size, 32100)
+	dst = torch.frombuffer(dst_file.read(), dtype=torch.float32).view(size, 768)
 
-	return random.sample(list(zip(src, dst)), size)
+	return src, dst
 
-pairs = load()
+xsrc, xdst = load()
 
 class linear_model(torch.nn.Module):
 	def __init__(self):
@@ -42,7 +38,8 @@ def batched(iterable, n):
 loss_fn = lambda have, want: torch.mean(torch.square(have - want))
 
 def test():
-	src, dst = pairs[4548]
+	src = xsrc[4548]
+	dst = xdst[4548]
 
 	src = src.float()
 	dst = dst.float()
@@ -51,13 +48,14 @@ def test():
 	print(loss)
 
 # Batch size has a lot of effect
-def train():
-	for x in batched(pairs, 16):
-		src = [src for src, _ in x]
-		dst = [dst for _, dst in x]
+bsz = 16
 
-		src = torch.vstack(src).float()
-		dst = torch.vstack(dst)
+def train():
+	batches = torch.randperm(8154).split(bsz)
+
+	for indices in batches:
+		src = xsrc[indices].float()
+		dst = xdst[indices]
 
 		loss = loss_fn(net(src), dst)
 
@@ -75,4 +73,5 @@ def train():
 
 		#print(loss)
 		test()
+
 
