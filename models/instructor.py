@@ -53,7 +53,7 @@ inspect = lambda x: tokenizer.decode(x['input_ids'].flatten().tolist())
 
 # Long inputs pooled using sum(0)
 # Alternative: flatten()
-pool = lambda x: x.flatten()
+pool = lambda x: x.sum(0)
 
 # Max batch size
 bsz = 4
