@@ -1,54 +1,73 @@
-from sentence_transformers.models import Transformer, Pooling, Dense, Normalize
-from sentence_transformers import SentenceTransformer
-from transformers import AutoConfig
-from collections import OrderedDict
-import json
-import os
+from huggingface_hub import hf_hub_download
+from transformers import T5EncoderModel
+import torch.nn.functional as F
+import torch
 
-class INSTRUCTOR_Transformer(Transformer):
-	def forward(self, features):
+# Simplified Mean Pooling
+# https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/models/Pooling.py
+class Pooling(torch.nn.Module):
+	def __init__(self):
+		super().__init__()
 
-		# Attention mask omitted for base model
+	def forward(self, token_embeddings, attention_mask):
+		input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+		sum = torch.sum(token_embeddings * input_mask_expanded, 1)
+
+		# All zeros attention mask will cause breakage
+		# So avoid doing that
+		n = input_mask_expanded.sum(1)
+
+		return sum / n
+
+# Dense layer
+# https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/models/Dense.py
+class Dense(torch.nn.Module):
+	def __init__(self, path):
+		super().__init__()
+
+		dense_weights = torch.load(path, map_location="cpu")
+		self.linear = torch.nn.Linear(768, 768, bias=False)
+		self.linear.weight = torch.nn.Parameter(dense_weights["linear.weight"])
+		self.activation_function = torch.nn.modules.linear.Identity()
+
+	def forward(self, sentence_embedding):
+		return self.activation_function(self.linear(sentence_embedding))
+
+# Normalization
+# https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/models/Normalize.py
+class Normalize(torch.nn.Module):
+	def __init__(self):
+		super().__init__()
+
+	def forward(self, sentence_embedding):
+		return F.normalize(sentence_embedding, p=2, dim=1)
+
+# Improved INSTRUCTOR class
+# Does not return a dict
+class INSTRUCTOR(torch.nn.Module):
+	def __init__(self):
+		super().__init__()
+
+		# Base
+		# https://github.com/UKPLab/sentence-transformers/blob/master/sentence_transformers/models/Transformer.py
+		self.base = T5EncoderModel.from_pretrained("hkunlp/instructor-base")
+		self.pooling = Pooling()
+		self.dense = Dense(hf_hub_download(repo_id="hkunlp/instructor-base", filename="2_Dense/pytorch_model.bin"))
+		self.normalize = Normalize()
+
+	def forward(self, input):
+		# Stage 0: Base model
+		# Attention mask omitted
 		# Equivalent to all ones attention mask
-		trans_features = {
-			'input_ids': features['input_ids']
-		}
+		token_embeddings = self.base(input_ids = input["input_ids"], return_dict=False)[0]
 
-		output_states = self.auto_model(**trans_features, return_dict=False)
-		output_tokens = output_states[0]
+		# Stage 1: Pooling
+		sentence_embedding = self.pooling(token_embeddings, input["attention_mask"])
 
-		features['token_embeddings'] = output_tokens
+		# Stage 2: Dense layer
+		sentence_embedding = self.dense(sentence_embedding)
 
-		return features
+		# Stage 3: Normalize
+		sentence_embedding = self.normalize(sentence_embedding)
 
-	@staticmethod
-	def load(input_path: str):
-		#Old classes used other config names than 'sentence_bert_config.json'
-		for config_name in ['sentence_bert_config.json', 'sentence_roberta_config.json', 'sentence_distilbert_config.json', 'sentence_camembert_config.json', 'sentence_albert_config.json', 'sentence_xlm-roberta_config.json', 'sentence_xlnet_config.json']:
-			sbert_config_path = os.path.join(input_path, config_name)
-			if os.path.exists(sbert_config_path):
-				break
-
-		with open(sbert_config_path) as fIn:
-			config = json.load(fIn)
-		return INSTRUCTOR_Transformer(model_name_or_path=input_path, **config)
-
-class INSTRUCTOR(SentenceTransformer):
-	def _load_sbert_model(self, model_path):
-		"""
-		Loads a full sentence-transformers model
-		"""
-
-		# INSTRUCTOR uses a customized Transformer module
-		# Also adds some additional blocks after the transformer
-		# Simplified to remove dependency on importlib
-		# https://huggingface.co/hkunlp/instructor-base/blob/main/modules.json
-		# https://huggingface.co/hkunlp/instructor-base/blob/main/1_Pooling/config.json
-		modules = OrderedDict()
-
-		modules['0'] = INSTRUCTOR_Transformer.load(model_path)
-		modules['1'] = Pooling(768)
-		modules['2'] = Dense.load(os.path.join(model_path, "2_Dense"))
-		modules['3'] = Normalize.load(os.path.join(model_path, "3_Normalize"))
-
-		return modules
+		return sentence_embedding

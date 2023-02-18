@@ -7,7 +7,7 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 # Notes about INSTRUCTOR:
 # - Instructions and the text are joined without adding a space
 tokenizer = AutoTokenizer.from_pretrained("hkunlp/instructor-base")
-model = INSTRUCTOR("hkunlp/instructor-base")
+model = INSTRUCTOR()
 model.eval()
 model.to(device)
 
@@ -60,7 +60,7 @@ bsz = 4
 
 def run_model(inputs):
 	with torch.no_grad():
-		emb = model(inputs)['sentence_embedding']
+		emb = model(inputs)
 
 	return emb.cpu()
 
