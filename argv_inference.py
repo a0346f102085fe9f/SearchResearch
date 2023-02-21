@@ -1,5 +1,4 @@
-#from models import cocodr as net
-from models import instructor as net
+from models import dragon as net
 import sys
 
 # Basic model/tokenizer debugging tool
