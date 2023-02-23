@@ -25,9 +25,9 @@ tokenize = lambda x: tokenizer(x, max_length=512, truncation=True, padding=True,
 # We want to inspect what the model actually gets
 inspect = lambda x: [tokenizer.decode(encoding.ids) for encoding in x.encodings]
 
-# Long inputs pooled using sum(0)
+# Long inputs pooled using mean(0)
 # Alternative: flatten()
-pool = lambda x: x.sum(0)
+pool = lambda x: x.mean(0)
 
 # Max batch size
 bsz = 4
