@@ -18,14 +18,13 @@ def score(x):
 	sums = []
 
 	for s in slices:
-		p = torch.einsum("bi,bj->bij", s, s).triu(1)
-		b = w * p
-
-		sums.append( b.sum((1,2)) )
+		p = torch.einsum("bi,bj->bij", s, s).mul_(w)
+		sums.append( p.sum((1,2)) )
 
 	score = x.sum(1) + torch.cat(sums)
 
 	return score
+
 
 A = torch.zeros(30522, 8)
 A[0, 0] = 1.0
