@@ -1,4 +1,4 @@
-from models import dragon as net
+from models import bge_m3 as net
 import sys
 
 # Basic model/tokenizer debugging tool
